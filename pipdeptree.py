@@ -8,6 +8,7 @@ from operator import attrgetter
 import json
 from importlib import import_module
 import itertools
+import re
 
 try:
     from collections import OrderedDict
@@ -402,7 +403,7 @@ def render_json_tree(tree, indent):
     return json.dumps([aux(p) for p in nodes], indent=indent)
 
 
-def dump_graphviz(tree, output_format='dot', show_only=None, exclude=None, list_all=None):
+def dump_graphviz(tree, output_format='dot', show_only=None, exclude=None, list_all=None, exp=None):
     """Output dependency graph as one of the supported GraphViz output formats.
 
     :param dict tree: dependency graph
@@ -448,8 +449,11 @@ def dump_graphviz(tree, output_format='dot', show_only=None, exclude=None, list_
 
         return get_dep_nodes(tree, extended_nodes)
 
+
     nodes = get_dep_nodes(tree, nodes)
     nodes = set(filter(lambda n: n.key not in exclude, nodes))
+    nodes = set(filter(lambda n: re.match(exp, n.key), nodes)) if exp else nodes
+    
 
     graph = Digraph(format=output_format)
 
@@ -461,6 +465,8 @@ def dump_graphviz(tree, output_format='dot', show_only=None, exclude=None, list_
 
         label = '{0}\n{1}'.format(project_name, package.version)
         graph.node(project_name, label=label)
+        deps = set(filter(lambda n: re.match(exp, n.key), deps)) if exp else deps
+
         for dep in deps:
             label = dep.version_spec
             if not label:
@@ -572,6 +578,10 @@ def get_parser():
                             'Comma separated list of select packages to show '
                             'in the output. If set, --all will be ignored.'
                         ))
+    parser.add_argument('-x', '--expression',
+                        help=(
+                            'Regexp to select which packages to include'
+                        ))
     parser.add_argument('-e', '--exclude',
                         help=(
                             'Comma separated list of select packages to exclude '
@@ -613,6 +623,7 @@ def main():
 
     show_only = set(args.packages.split(',')) if args.packages else None
     exclude = set(args.exclude.split(',')) if args.exclude else None
+    exp = args.expression if args.expression else None
 
     list_all=args.all
 
@@ -624,7 +635,7 @@ def main():
         return 0
     elif args.output_format:
         output = dump_graphviz(tree, output_format=args.output_format,
-                               show_only=show_only, exclude=exclude, list_all=list_all)
+                               show_only=show_only, exclude=exclude, list_all=list_all, exp=exp)
         print_graphviz(output)
         return 0
 
